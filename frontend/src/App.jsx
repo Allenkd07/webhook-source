@@ -3,6 +3,7 @@ import Header from "./components/Header";
 import FilterBar from "./components/FilterBar";
 import EventList from "./components/EventList";
 import StatsCards from "./components/StatsCards";
+import Pagination from "./components/Pagination";
 
 // Mock data for development
 const mockEvents = [
@@ -56,28 +57,55 @@ const mockEvents = [
 
 export default function App() {
   const [events, setEvents] = useState([]);
+  const [allEvents, setAllEvents] = useState([]); // For stats calculation
   const [selectedFilters, setSelectedFilters] = useState(
     () => JSON.parse(localStorage.getItem("filters") || "[]")
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [usingMockData, setUsingMockData] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [limit] = useState(10); // Events per page
 
-  // Fetch events from Flask API with fallback to mock data
-  const fetchEvents = async () => {
+  // Fetch events from Flask API with pagination
+  const fetchEvents = async (page = 1, resetData = false) => {
     try {
+      if (resetData) {
+        setLoading(true);
+      }
       setError(null);
-      const res = await fetch("http://localhost:5000/webhook/events");
+      
+      const res = await fetch(`http://localhost:5000/webhook/events?page=${page}&limit=${limit}`);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
+      
       const data = await res.json();
-      setEvents(data.reverse()); // latest first
+      
+      // Update pagination state
+      setCurrentPage(data.page);
+      setTotalPages(data.total_pages);
+      setTotalCount(data.total_count);
+      setEvents(data.results);
+      
+      // Fetch all events for stats (only on first load or refresh)
+      if (resetData || allEvents.length === 0) {
+        fetchAllEventsForStats();
+      }
+      
       setUsingMockData(false);
     } catch (err) {
       console.warn("Failed to fetch from API, using mock data:", err);
       // Use mock data as fallback
       setEvents(mockEvents);
+      setAllEvents(mockEvents);
+      setTotalCount(mockEvents.length);
+      setTotalPages(1);
+      setCurrentPage(1);
       setUsingMockData(true);
       setError(null); // Clear error since we have fallback data
     } finally {
@@ -85,11 +113,31 @@ export default function App() {
     }
   };
 
+  // Fetch all events for stats calculation (without pagination)
+  const fetchAllEventsForStats = async () => {
+    try {
+      const res = await fetch(`http://localhost:5000/webhook/events?page=1&limit=1000`); // Large limit to get all
+      if (res.ok) {
+        const data = await res.json();
+        setAllEvents(data.results);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch all events for stats:", err);
+    }
+  };
+
   useEffect(() => {
-    fetchEvents();
-    const interval = setInterval(fetchEvents, 15000); // refresh every 15s
+    fetchEvents(1, true);
+    const interval = setInterval(() => fetchEvents(currentPage), 15000); // refresh every 15s
     return () => clearInterval(interval);
   }, []);
+
+  // Handle page change
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      fetchEvents(page);
+    }
+  };
 
   // Save filters to localStorage
   useEffect(() => {
@@ -102,12 +150,12 @@ export default function App() {
       ? events.filter((e) => selectedFilters.includes(e.action))
       : events;
 
-  // Calculate stats
+  // Calculate stats from all events
   const stats = {
-    total: events.length,
-    pushes: events.filter(e => e.action === 'PUSH').length,
-    pullRequests: events.filter(e => e.action === 'PULL_REQUEST').length,
-    merges: events.filter(e => e.action === 'MERGE').length,
+    total: allEvents.length,
+    pushes: allEvents.filter(e => e.action === 'PUSH').length,
+    pullRequests: allEvents.filter(e => e.action === 'PULL_REQUEST').length,
+    merges: allEvents.filter(e => e.action === 'MERGE').length,
   };
 
   return (
@@ -157,14 +205,28 @@ export default function App() {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Connection Error</h3>
               <p className="text-gray-600 mb-4">{error}</p>
               <button
-                onClick={fetchEvents}
+                onClick={() => fetchEvents(1, true)}
                 className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
               >
                 Try Again
               </button>
             </div>
           ) : (
-            <EventList events={filteredEvents} />
+            <>
+              <EventList events={filteredEvents} />
+              
+              {!usingMockData && totalPages > 1 && (
+                <div className="mt-8">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalCount={totalCount}
+                    onPageChange={handlePageChange}
+                    loading={loading}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
