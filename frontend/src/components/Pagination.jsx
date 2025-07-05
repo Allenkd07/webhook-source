@@ -6,12 +6,13 @@ export default function Pagination({
   totalPages, 
   totalCount, 
   onPageChange, 
-  loading 
+  loading,
+  compact = false
 }) {
   // Generate page numbers to display
   const getPageNumbers = () => {
     const pages = [];
-    const maxVisiblePages = 7;
+    const maxVisiblePages = compact ? 5 : 7;
     
     if (totalPages <= maxVisiblePages) {
       // Show all pages if total is small
@@ -22,13 +23,13 @@ export default function Pagination({
       // Show first page
       pages.push(1);
       
-      if (currentPage > 4) {
+      if (currentPage > (compact ? 3 : 4)) {
         pages.push('...');
       }
       
       // Show pages around current page
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
+      const start = Math.max(2, currentPage - (compact ? 0 : 1));
+      const end = Math.min(totalPages - 1, currentPage + (compact ? 0 : 1));
       
       for (let i = start; i <= end; i++) {
         if (!pages.includes(i)) {
@@ -36,7 +37,7 @@ export default function Pagination({
         }
       }
       
-      if (currentPage < totalPages - 3) {
+      if (currentPage < totalPages - (compact ? 2 : 3)) {
         pages.push('...');
       }
       
@@ -50,6 +51,63 @@ export default function Pagination({
   };
 
   const pageNumbers = getPageNumbers();
+
+  if (compact) {
+    return (
+      <div className="flex items-center space-x-2">
+        {/* Previous Button */}
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1 || loading}
+          className="flex items-center justify-center w-9 h-9 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        
+        {/* Page Numbers - Compact */}
+        <div className="flex items-center space-x-1">
+          {pageNumbers.map((page, index) => (
+            <React.Fragment key={index}>
+              {page === '...' ? (
+                <div className="flex items-center justify-center w-9 h-9">
+                  <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                </div>
+              ) : (
+                <button
+                  onClick={() => onPageChange(page)}
+                  disabled={loading}
+                  className={`w-9 h-9 text-sm font-medium rounded-lg transition-colors ${
+                    currentPage === page
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
+                      : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+        
+        {/* Next Button */}
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || loading}
+          className="flex items-center justify-center w-9 h-9 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+        
+        {loading && (
+          <div className="flex items-center ml-3">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-purple-600"></div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">

@@ -164,6 +164,8 @@ export default function App() {
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages && page !== currentPage) {
       setCurrentPage(page);
+      // Scroll to top of events section when page changes
+      document.querySelector('main')?.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -273,8 +275,16 @@ export default function App() {
             </div>
           ) : (
             <>
-              <EventList events={paginatedEvents} />
+              <EventList 
+                events={paginatedEvents}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalCount={totalFilteredCount}
+                onPageChange={handlePageChange}
+                loading={loading}
+              />
               
+              {/* Bottom Pagination (Optional - can be removed if you only want top pagination) */}
               {totalPages > 1 && (
                 <div className="mt-8">
                   <Pagination

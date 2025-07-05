@@ -1,8 +1,16 @@
 import React from "react";
 import EventCard from "./EventCard";
+import Pagination from "./Pagination";
 import { GitBranch, Search } from "lucide-react";
 
-export default function EventList({ events }) {
+export default function EventList({ 
+  events, 
+  currentPage, 
+  totalPages, 
+  totalCount, 
+  onPageChange, 
+  loading 
+}) {
   const formatEvent = (event) => {
     const date = new Date(event.timestamp);
     const formatted =
@@ -50,15 +58,38 @@ export default function EventList({ events }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Recent Activity
-          <span className="ml-3 text-lg font-normal text-gray-500">
-            ({events.length} event{events.length !== 1 ? 's' : ''})
-          </span>
-        </h2>
+      {/* Header with Title and Pagination */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Recent Activity
+            <span className="ml-3 text-lg font-normal text-gray-500">
+              ({totalCount} event{totalCount !== 1 ? 's' : ''})
+            </span>
+          </h2>
+          {totalPages > 1 && (
+            <p className="text-sm text-gray-500 mt-1">
+              Showing page {currentPage} of {totalPages}
+            </p>
+          )}
+        </div>
+        
+        {/* Top Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex-shrink-0">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              onPageChange={onPageChange}
+              loading={loading}
+              compact={true}
+            />
+          </div>
+        )}
       </div>
       
+      {/* Events List */}
       {events.map((event, index) => (
         <div
           key={event._uniqueKey || `${event.request_id}-${index}`}
