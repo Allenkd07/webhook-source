@@ -64,6 +64,20 @@ export default function EventCard({ event, text }) {
     return `${diffDays}d ago`;
   };
 
+  const formatFullTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+      timeZoneName: "short"
+    });
+  };
+
   const colors = getActionColor(event.action);
 
   return (
@@ -120,10 +134,15 @@ export default function EventCard({ event, text }) {
                 </div>
               )}
             </div>
-            
-            <div className="text-xs text-gray-400">
-              <Calendar className="h-3 w-3 inline mr-1" />
-              {new Date(event.timestamp).toLocaleDateString()}
+          </div>
+          
+          {/* Full Timestamp Section */}
+          <div className="mt-4 pt-3 border-t border-gray-100">
+            <div className="flex items-center space-x-2 text-xs text-gray-500">
+              <Calendar className="h-3 w-3" />
+              <span className="font-mono bg-gray-50 px-2 py-1 rounded text-xs">
+                {formatFullTimestamp(event.timestamp)}
+              </span>
             </div>
           </div>
         </div>

@@ -18,11 +18,11 @@ export default function EventList({ events }) {
 
     switch (event.action) {
       case "PUSH":
-        return `${event.author} pushed changes to ${event.to_branch} branch`;
+        return `${event.author} pushed changes to '${event.to_branch}' branch`;
       case "PULL_REQUEST":
-        return `${event.author} opened a pull request from ${event.from_branch} to ${event.to_branch}`;
+        return `${event.author} opened a pull request from '${event.from_branch}' to '${event.to_branch}'`;
       case "MERGE":
-        return `${event.author} merged ${event.from_branch} into ${event.to_branch}`;
+        return `${event.author} merged '${event.from_branch}' into '${event.to_branch}'`;
       default:
         return null;
     }
