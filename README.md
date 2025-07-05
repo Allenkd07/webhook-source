@@ -45,7 +45,7 @@ This project consists of two main parts:
 
 ### 1. Clone the repo & create a virtual environment:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Allenkd07/webhook-source.git
 cd webhook-source
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
