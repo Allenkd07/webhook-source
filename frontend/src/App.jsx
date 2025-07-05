@@ -5,7 +5,7 @@ import EventList from "./components/EventList";
 import StatsCards from "./components/StatsCards";
 import Pagination from "./components/Pagination";
 
-// Mock data for development
+// Mock data
 const mockEvents = [
   {
     request_id: "req_001",
@@ -56,8 +56,7 @@ const mockEvents = [
 ];
 
 export default function App() {
-  const [events, setEvents] = useState([]);
-  const [allEvents, setAllEvents] = useState([]); // For stats calculation
+  const [allEvents, setAllEvents] = useState([]);
   const [selectedFilters, setSelectedFilters] = useState(
     () => JSON.parse(localStorage.getItem("filters") || "[]")
   );
@@ -67,45 +66,57 @@ export default function App() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [limit] = useState(10); // Events per page
 
-  // Fetch events from Flask API with pagination
-  const fetchEvents = async (page = 1, resetData = false) => {
+  // Function to remove duplicate events and ensure unique keys
+  const deduplicateEvents = (events) => {
+    const seen = new Set();
+    const uniqueEvents = [];
+    
+    for (const event of events) {
+      // Create a unique identifier combining request_id, action, and timestamp
+      const uniqueKey = `${event.request_id}-${event.action}-${event.timestamp}`;
+      
+      if (!seen.has(uniqueKey)) {
+        seen.add(uniqueKey);
+        // Add a unique key for React rendering
+        uniqueEvents.push({
+          ...event,
+          _uniqueKey: uniqueKey
+        });
+      }
+    }
+    
+    return uniqueEvents;
+  };
+
+  // Fetch all events from Flask API (for proper filtering and stats)
+  const fetchAllEvents = async (resetData = false) => {
     try {
       if (resetData) {
         setLoading(true);
       }
       setError(null);
       
-      const res = await fetch(`http://localhost:5000/webhook/events?page=${page}&limit=${limit}`);
+      // Fetch all events with a large limit to get everything
+      const res = await fetch(`http://localhost:5000/webhook/events?page=1&limit=10000`);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       
       const data = await res.json();
+      const rawEvents = data.results || [];
       
-      // Update pagination state
-      setCurrentPage(data.page);
-      setTotalPages(data.total_pages);
-      setTotalCount(data.total_count);
-      setEvents(data.results);
+      // Remove duplicates and add unique keys
+      const uniqueEvents = deduplicateEvents(rawEvents);
       
-      // Fetch all events for stats (only on first load or refresh)
-      if (resetData || allEvents.length === 0) {
-        fetchAllEventsForStats();
-      }
-      
+      setAllEvents(uniqueEvents);
       setUsingMockData(false);
     } catch (err) {
       console.warn("Failed to fetch from API, using mock data:", err);
-      // Use mock data as fallback
-      setEvents(mockEvents);
-      setAllEvents(mockEvents);
-      setTotalCount(mockEvents.length);
-      setTotalPages(1);
-      setCurrentPage(1);
+      // Use mock data as fallback with unique keys
+      const uniqueMockEvents = deduplicateEvents(mockEvents);
+      setAllEvents(uniqueMockEvents);
       setUsingMockData(true);
       setError(null); // Clear error since we have fallback data
     } finally {
@@ -113,31 +124,16 @@ export default function App() {
     }
   };
 
-  // Fetch all events for stats calculation (without pagination)
-  const fetchAllEventsForStats = async () => {
-    try {
-      const res = await fetch(`http://localhost:5000/webhook/events?page=1&limit=1000`); // Large limit to get all
-      if (res.ok) {
-        const data = await res.json();
-        setAllEvents(data.results);
-      }
-    } catch (err) {
-      console.warn("Failed to fetch all events for stats:", err);
-    }
-  };
-
   useEffect(() => {
-    fetchEvents(1, true);
-    const interval = setInterval(() => fetchEvents(currentPage), 15000); // refresh every 15s
+    fetchAllEvents(true);
+    const interval = setInterval(() => fetchAllEvents(), 15000); // refresh every 15s
     return () => clearInterval(interval);
   }, []);
 
-  // Handle page change
-  const handlePageChange = (page) => {
-    if (page >= 1 && page <= totalPages && page !== currentPage) {
-      fetchEvents(page);
-    }
-  };
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedFilters]);
 
   // Save filters to localStorage
   useEffect(() => {
@@ -145,18 +141,62 @@ export default function App() {
   }, [selectedFilters]);
 
   // Filter events by selected action types
-  const filteredEvents =
-    selectedFilters.length > 0
-      ? events.filter((e) => selectedFilters.includes(e.action))
-      : events;
+  const filteredEvents = React.useMemo(() => {
+    if (!allEvents || allEvents.length === 0) {
+      return [];
+    }
+    
+    if (selectedFilters.length === 0) {
+      return allEvents;
+    }
+    
+    return allEvents.filter((event) => selectedFilters.includes(event.action));
+  }, [allEvents, selectedFilters]);
 
-  // Calculate stats from all events
-  const stats = {
-    total: allEvents.length,
-    pushes: allEvents.filter(e => e.action === 'PUSH').length,
-    pullRequests: allEvents.filter(e => e.action === 'PULL_REQUEST').length,
-    merges: allEvents.filter(e => e.action === 'MERGE').length,
+  // Calculate pagination for filtered events
+  const totalFilteredCount = filteredEvents.length;
+  const totalPages = Math.ceil(totalFilteredCount / limit);
+  const startIndex = (currentPage - 1) * limit;
+  const endIndex = startIndex + limit;
+  const paginatedEvents = filteredEvents.slice(startIndex, endIndex);
+
+  // Handle page change
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+    }
   };
+
+  // Calculate stats from all events (not filtered)
+  const allStats = React.useMemo(() => {
+    if (!allEvents || allEvents.length === 0) {
+      return { total: 0, pushes: 0, pullRequests: 0, merges: 0 };
+    }
+    
+    return {
+      total: allEvents.length,
+      pushes: allEvents.filter(e => e.action === 'PUSH').length,
+      pullRequests: allEvents.filter(e => e.action === 'PULL_REQUEST').length,
+      merges: allEvents.filter(e => e.action === 'MERGE').length,
+    };
+  }, [allEvents]);
+
+  // Calculate filtered stats for display
+  const filteredStats = React.useMemo(() => {
+    if (!filteredEvents || filteredEvents.length === 0) {
+      return { total: 0, pushes: 0, pullRequests: 0, merges: 0 };
+    }
+    
+    return {
+      total: filteredEvents.length,
+      pushes: filteredEvents.filter(e => e.action === 'PUSH').length,
+      pullRequests: filteredEvents.filter(e => e.action === 'PULL_REQUEST').length,
+      merges: filteredEvents.filter(e => e.action === 'MERGE').length,
+    };
+  }, [filteredEvents]);
+
+  // Determine which stats to show
+  const statsToShow = selectedFilters.length > 0 ? filteredStats : allStats;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
@@ -182,9 +222,29 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {selectedFilters.length > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <p className="text-sm text-blue-800">
+                    <span className="font-semibold">Filtered View:</span> Showing {filteredStats.total} of {allStats.total} events
+                    <span className="ml-2 text-blue-600">({selectedFilters.join(', ')})</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedFilters([])}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Clear filters
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        <StatsCards stats={stats} />
+        <StatsCards stats={statsToShow} />
 
         <FilterBar
           selectedFilters={selectedFilters}
@@ -192,7 +252,7 @@ export default function App() {
         />
 
         <div className="mt-8">
-          {loading && events.length === 0 ? (
+          {loading && allEvents.length === 0 ? (
             <div className="flex items-center justify-center py-16">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-200 border-t-purple-600 mx-auto mb-4"></div>
@@ -205,7 +265,7 @@ export default function App() {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Connection Error</h3>
               <p className="text-gray-600 mb-4">{error}</p>
               <button
-                onClick={() => fetchEvents(1, true)}
+                onClick={() => fetchAllEvents(true)}
                 className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
               >
                 Try Again
@@ -213,14 +273,14 @@ export default function App() {
             </div>
           ) : (
             <>
-              <EventList events={filteredEvents} />
+              <EventList events={paginatedEvents} />
               
-              {!usingMockData && totalPages > 1 && (
+              {totalPages > 1 && (
                 <div className="mt-8">
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
-                    totalCount={totalCount}
+                    totalCount={totalFilteredCount}
                     onPageChange={handlePageChange}
                     loading={loading}
                   />

@@ -18,11 +18,11 @@ export default function EventList({ events }) {
 
     switch (event.action) {
       case "PUSH":
-        return `${event.author} pushed changes to '${event.to_branch}' branch`;
+        return `${event.author} pushed changes to ${event.to_branch} branch`;
       case "PULL_REQUEST":
-        return `${event.author} opened a pull request from '${event.from_branch}' to '${event.to_branch}'`;
+        return `${event.author} opened a pull request from ${event.from_branch} to ${event.to_branch}`;
       case "MERGE":
-        return `${event.author} merged '${event.from_branch}' into '${event.to_branch}'`;
+        return `${event.author} merged ${event.from_branch} into ${event.to_branch}`;
       default:
         return null;
     }
@@ -61,7 +61,7 @@ export default function EventList({ events }) {
       
       {events.map((event, index) => (
         <div
-          key={event.request_id}
+          key={event._uniqueKey || `${event.request_id}-${index}`}
           className="animate-fade-in"
           style={{ animationDelay: `${index * 0.1}s` }}
         >
