@@ -47,15 +47,23 @@ export default function EventCard({ event, text }) {
   };
 
   const formatDate = (timestamp) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    // Parse the UTC timestamp from API and treat it as UTC
+    const eventDateUTC = new Date(timestamp + 'Z'); // Ensure it's treated as UTC
+    
+    // Convert UTC time to local time
+    const eventDateLocal = new Date(eventDateUTC.getTime());
+    
+    // Get current local time
+    const nowLocal = new Date();
+    
+    // Calculate difference between converted local event time and current local time
+    const diffMs = nowLocal.getTime() - eventDateLocal.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
     const diffDays = Math.floor(diffHours / 24);
 
     if (diffDays === 0) {
       if (diffHours === 0) {
-        const diffMinutes = Math.floor(diffMs / (1000 * 60));
         return diffMinutes <= 1 ? "just now" : `${diffMinutes}m ago`;
       }
       return `${diffHours}h ago`;
@@ -74,8 +82,8 @@ export default function EventCard({ event, text }) {
       minute: "2-digit",
       second: "2-digit",
       hour12: true,
-      timeZoneName: "short"
-    });
+      timeZone: "UTC"
+    }) + " UTC";
   };
 
   const colors = getActionColor(event.action);
